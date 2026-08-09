@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>故障文字生成器【老黑】</title>
+<title>故障文字【老黑】</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -28,11 +28,6 @@
     font-size: 16px; font-weight: 700; color: #fff;
     padding-bottom: 10px; border-bottom: 1px solid #2a2a3a;
     letter-spacing: 0.5px;
-  }
-  .panel-hint {
-    font-size: 11px; color: #6b7280; line-height: 1.5;
-    padding: 6px 8px; background: rgba(99,102,241,0.08);
-    border-radius: 5px; border-left: 2px solid #6366f1;
   }
   .param-label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-bottom: 4px; }
   .param-value { font-family: "Cascadia Code","Fira Code", monospace; color: #6366f1; font-weight: 600; font-size: 13px; }
@@ -64,12 +59,6 @@
     width: 28px; height: 22px; border: none; border-radius: 4px;
     background: transparent; cursor: pointer; padding: 0;
   }
-  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
-  .toggle-row span { font-size: 12px; color: #aaa; }
-  .switch { position: relative; width: 36px; height: 20px; background: #1e1e2e; border-radius: 10px; cursor: pointer; transition: background 0.2s; }
-  .switch.on { background: #6366f1; }
-  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
-  .switch.on::after { transform: translateX(16px); }
   .btn-row { display: flex; gap: 6px; }
   .save-btn {
     flex: 1; padding: 10px 0; border: none; border-radius: 7px;
@@ -83,10 +72,26 @@
     resize: vertical; min-height: 60px; font-family: inherit;
   }
   .text-input:focus { border-color: #6366f1; }
-  .file-input {
-    width: 100%; padding: 6px 8px; background: #1a1a24; border: 1px solid #2a2a3a;
-    border-radius: 5px; color: #aaa; font-size: 11px; cursor: pointer;
+
+  /* 字体上传区域（参考粒子标题项目） */
+  .font-zone {
+    display: flex; gap: 6px; align-items: stretch;
   }
+  .font-zone .font-btn {
+    flex: 1; padding: 8px 10px; border: 1px dashed #2a2a3a; border-radius: 5px;
+    background: #1a1a24; color: #aaa; font-size: 12px; cursor: pointer;
+    transition: all 0.2s; text-align: center;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .font-zone .font-btn:hover { border-color: #6366f1; color: #fff; background: rgba(99,102,241,0.12); }
+  .font-zone .font-btn.loaded { border-style: solid; border-color: #6366f1; color: #6366f1; }
+  .font-zone .font-clear {
+    width: 32px; border: 1px solid #2a2a3a; border-radius: 5px;
+    background: #1a1a24; color: #aaa; cursor: pointer; font-size: 14px;
+    transition: all 0.2s;
+  }
+  .font-zone .font-clear:hover { border-color: #ec4899; color: #ec4899; }
+  .font-zone input[type="file"] { display: none; }
 
   .toggle-btn {
     position: fixed; top: 16px; right: 16px; z-index: 1001;
@@ -163,29 +168,27 @@
     0%,100% { transform: translate(-50%,-50%) scale(0.7); opacity: 0.55; }
     50% { transform: translate(-50%,-50%) scale(1.25); opacity: 1; }
   }
-
-  .corner-hint {
-    position: fixed; top: 16px; left: 16px;
-    font-size: 11px; color: rgba(255,255,255,0.4);
-    font-family: "Cascadia Code", monospace;
-    letter-spacing: 1px; z-index: 10;
-    user-select: none; pointer-events: none;
-  }
 </style>
 </head>
 <body>
 
-<div class="corner-hint">⟨ FAULT-TEXT GEN v1 ⟩</div>
-
 <div class="control-panel" id="panel">
-  <div class="panel-title">故障文字 · 控制台</div>
-  <div class="panel-hint">输入文字，调整参数，实时生成赛博朋克风故障文本。多行用 Enter 换行。</div>
+  <div class="panel-title">故障文字【老黑】</div>
 
   <div>
     <div class="param-label"><span>输入文字</span></div>
     <textarea class="text-input" id="textInput" rows="3">DIGITAL
-DESIGN
+LAOHEI
 DECODED</textarea>
+  </div>
+
+  <div>
+    <div class="param-label"><span>字体</span></div>
+    <div class="font-zone">
+      <button class="font-btn" id="fontBtn">📁 上传本地字体</button>
+      <button class="font-clear" id="fontClear" title="清除字体">×</button>
+      <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
+    </div>
   </div>
 
   <div>
@@ -199,41 +202,28 @@ DECODED</textarea>
   </div>
 
   <div>
-    <div class="param-label"><span>RGB 偏移强度</span><span class="param-value" id="vChromatic">14</span></div>
-    <input type="range" id="chromatic" min="0" max="40" value="14" step="1">
+    <div class="param-label"><span>行距</span><span class="param-value" id="vLineHeight">1.1</span></div>
+    <input type="range" id="lineHeight" min="0.5" max="3.0" value="1.1" step="0.1">
   </div>
 
   <div>
-    <div class="param-label"><span>切片强度</span><span class="param-value" id="vSliceMag">38</span></div>
-    <input type="range" id="sliceMag" min="0" max="80" value="38" step="1">
+    <div class="param-label"><span>RGB 偏移强度</span><span class="param-value" id="vChromatic">3</span></div>
+    <input type="range" id="chromatic" min="0" max="10" value="3" step="1">
+  </div>
+
+  <div>
+    <div class="param-label"><span>切片强度</span><span class="param-value" id="vSliceMag">15</span></div>
+    <input type="range" id="sliceMag" min="0" max="30" value="15" step="1">
   </div>
 
   <div>
     <div class="param-label"><span>切片密度</span><span class="param-value" id="vSliceDensity">10</span></div>
-    <input type="range" id="sliceDensity" min="0" max="40" value="10" step="1">
+    <input type="range" id="sliceDensity" min="0" max="30" value="10" step="1">
   </div>
 
   <div>
-    <div class="param-label"><span>噪点强度</span><span class="param-value" id="vNoise">35</span></div>
-    <input type="range" id="noise" min="0" max="100" value="35" step="1">
-  </div>
-
-  <div>
-    <div class="param-label"><span>扫描线</span><span class="param-value" id="vScan">30</span></div>
-    <input type="range" id="scan" min="0" max="100" value="30" step="1">
-  </div>
-
-  <div>
-    <div class="param-label"><span>动画速度</span><span class="param-value" id="vSpeed">1.0</span></div>
-    <input type="range" id="speed" min="0" max="30" value="10" step="1">
-  </div>
-
-  <div>
-    <div class="param-label"><span>故障强度（点击触发）</span></div>
-    <div class="btn-row">
-      <button class="save-btn" id="triggerBtn" style="flex:2; background:linear-gradient(135deg,#ec4899,#f59e0b);">⚡ 触发强故障</button>
-      <button class="save-btn" id="resetBtn" style="flex:1; background:linear-gradient(135deg,#475569,#64748b);">重置</button>
-    </div>
+    <div class="param-label"><span>动画速度</span><span class="param-value" id="vSpeed">0.050</span></div>
+    <input type="range" id="speed" min="0" max="100" value="50" step="1">
   </div>
 
   <div>
@@ -247,12 +237,12 @@ DECODED</textarea>
 
   <div class="color-row">
     <div class="color-pick">
-      <input type="color" id="c1" value="#00ffff" title="左通道（青）">
-      <label>左色</label>
+      <input type="color" id="c1" value="#00ffff" title="左上 45° 通道">
+      <label>左上色</label>
     </div>
     <div class="color-pick">
-      <input type="color" id="c2" value="#ff00ff" title="右通道（紫）">
-      <label>右色</label>
+      <input type="color" id="c2" value="#ff00ff" title="右下 45° 通道">
+      <label>右下色</label>
     </div>
     <div class="color-pick">
       <input type="color" id="bg" value="#050008" title="背景">
@@ -260,20 +250,8 @@ DECODED</textarea>
     </div>
   </div>
 
-  <div>
-    <div class="toggle-row">
-      <span>显示 HUD 边框</span>
-      <div class="switch on" id="hudSwitch"></div>
-    </div>
-  </div>
-
   <div class="btn-row">
     <button class="save-btn" id="saveBtn">导出 PNG</button>
-  </div>
-
-  <div>
-    <div class="param-label"><span>上传本地字体（可选）</span></div>
-    <input type="file" id="fontFile" class="file-input" accept=".ttf,.otf,.woff,.woff2">
   </div>
 </div>
 
@@ -314,35 +292,35 @@ DECODED</textarea>
 <script>
 // ===== 配置 =====
 const cfg = {
-  text: 'DIGITAL\nDESIGN\nDECODED',
+  text: 'DIGITAL\nLAOHEI\nDECODED',
   fontSize: 120,
   tracking: 0,
-  chromatic: 14,
-  sliceMag: 38,
+  lineHeight: 1.1,
+  chromatic: 3,
+  sliceMag: 15,
   sliceDensity: 10,
-  noiseAmt: 35,
-  scanAmt: 30,
-  speed: 1.0,
-  c1: '#00ffff',
-  c2: '#ff00ff',
+  speed: 50,
+  c1: '#00ffff',   // 左上 45° 通道
+  c2: '#ff00ff',   // 右下 45° 通道
   bg: '#050008',
-  showHUD: true,
   fontName: null,
-  burst: 0,
 };
 
 // ===== p5 =====
-let pg;           // 离屏文字画布
-let noisePx;      // 噪点缓存 (random 抖动预生成)
+let pg;               // 离屏文字画布（白色）
+let pg1, pg2;         // 离屏缓存：c1 染色版本、c2 染色版本
+let pg1Color = null, pg2Color = null;  // 缓存命中追踪
+let textBBox = null;  // 文字包围盒 { top, bottom, left, right }
 let timeAcc = 0;
 let lastFrameMs = 0;
-let frameIdx = 0;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
   colorMode(RGB, 255, 255, 255, 1);
   pg = makeG();
+  pg1 = makeG();
+  pg2 = makeG();
   computeText();
 }
 
@@ -356,49 +334,103 @@ function makeG() {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   pg = makeG();
+  pg1 = makeG();
+  pg2 = makeG();
+  pg1Color = null; pg2Color = null;
   computeText();
 }
 
+// 计算文字包围盒（用于切片 y 范围优化）
+function computeTextBBox() {
+  const lines = cfg.text.split('\n');
+  const lineH = cfg.fontSize * cfg.lineHeight;
+  const totalH = lines.length * lineH;
+  const cy = height / 2 - totalH / 2 + lineH / 2;
+  textBBox = {
+    top: cy - lineH / 2,
+    bottom: cy + (lines.length - 1) * lineH + lineH / 2,
+    left: 0, right: width
+  };
+}
+
 // ===== 计算文字布局到 pg =====
+// 用 Canvas 2D 原生 API 直接绘制，绕过 p5 textFont/textSize 重置 bug
 function computeText() {
   if (!cfg.text) cfg.text = ' ';
-  pg.clear();
-  pg.noStroke();
-  pg.fill(255);
-  pg.textAlign(CENTER, CENTER);
-  pg.textStyle(BOLD);
-  pg.textSize(cfg.fontSize);
-  if (cfg.fontName) pg.textFont(cfg.fontName);
-  else pg.textFont('Impact, "Arial Black", "Helvetica Neue", sans-serif');
-
+  const fontStr = cfg.fontName || '"Bodoni 72", "Big Caslon", Didot, "Hoefler Text", "Playfair Display", Georgia, "Times New Roman", serif';
+  const fs = cfg.fontSize;
+  const trk = cfg.tracking;
   const lines = cfg.text.split('\n');
-  const lineH = cfg.fontSize * 1.1;
+  const lineH = fs * cfg.lineHeight;
   const totalH = lines.length * lineH;
   const cx = width / 2;
   const cy = height / 2 - totalH / 2 + lineH / 2;
 
-  drawTextWithTracking(pg, lines, cx, cy, lineH, cfg.fontSize, cfg.tracking);
+  pg.clear();
+  drawTextWithCtx(pg, lines, cx, cy, lineH, fs, trk, fontStr, 'rgb(255,255,255)');
+
+  // 显式重建染色缓存（避免惰性重建的时序问题）
+  pg1.clear();
+  pg2.clear();
+  drawTextWithCtx(pg1, lines, cx, cy, lineH, fs, trk, fontStr, hexToRgb(cfg.c1));
+  drawTextWithCtx(pg2, lines, cx, cy, lineH, fs, trk, fontStr, hexToRgb(cfg.c2));
+  pg1Color = cfg.c1;
+  pg2Color = cfg.c2;
+
+  computeTextBBox();
 }
 
-function drawTextWithTracking(g, lines, cx, cy, lineH, fs, track) {
-  if (track === 0) {
-    for (let i = 0; i < lines.length; i++) g.text(lines[i], cx, cy + i * lineH);
-    return;
-  }
-  // 多行 + 自定义字距：每行单独处理
+// 用 Canvas 2D ctx 直接绘制文字（完全绕过 p5 的 textFont/textSize bug）
+function drawTextWithCtx(g, lines, cx, cy, lineH, fs, track, fontStr, fillColor) {
+  const ctx = g.drawingContext;
+  ctx.fillStyle = fillColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${fs}px ${fontStr}`;
+
   for (let i = 0; i < lines.length; i++) {
-    const str = lines[i];
-    const chars = [...str];
-    if (chars.length === 0) continue;
-    const widths = chars.map(c => g.textWidth(c) + track);
-    const totalW = widths.reduce((a, b) => a + b, 0) - track;
-    let x = cx - totalW / 2;
+    const line = lines[i];
+    if (!line) continue;
     const y = cy + i * lineH;
-    for (let j = 0; j < chars.length; j++) {
-      g.text(chars[j], x + widths[j] / 2, y);
-      x += widths[j];
+    if (track === 0) {
+      ctx.fillText(line, cx, y);
+    } else {
+      const chars = [...line];
+      const widths = chars.map(c => ctx.measureText(c).width + track);
+      const totalW = widths.reduce((a, b) => a + b, 0) - track;
+      let x = cx - totalW / 2;
+      for (let j = 0; j < chars.length; j++) {
+        ctx.fillText(chars[j], x + widths[j] / 2, y);
+        x += widths[j];
+      }
     }
   }
+}
+
+// hex 颜色转 rgb() 字符串
+function hexToRgb(hex) {
+  let h = (hex || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return `rgb(${r},${g},${b})`;
+}
+
+// 获取某通道的预烤版本（颜色变化时重建）
+function getChannel(cachedKey, dstG, col) {
+  if (cachedKey === col && dstG) return dstG;
+  // 颜色变化：重画这个通道（ctx 直接绘制，绕开 p5 text bug）
+  const fontStr = cfg.fontName || '"Bodoni 72", "Big Caslon", Didot, "Hoefler Text", "Playfair Display", Georgia, "Times New Roman", serif';
+  const fs = cfg.fontSize;
+  const trk = cfg.tracking;
+  const lines = cfg.text.split('\n');
+  const lineH = fs * cfg.lineHeight;
+  const cx = dstG.width / 2;
+  const cy = dstG.height / 2 - (lines.length * lineH) / 2 + lineH / 2;
+  dstG.clear();
+  drawTextWithCtx(dstG, lines, cx, cy, lineH, fs, trk, fontStr, hexToRgb(col));
+  return dstG;
 }
 
 // ===== 主绘制 =====
@@ -408,177 +440,86 @@ function draw() {
   lastFrameMs = now;
   const dtc = Math.min(dt, 3);
 
-  timeAcc += 0.016 * cfg.speed * dtc;
-  cfg.burst *= Math.pow(0.96, dtc);
-  if (cfg.burst < 0.01) cfg.burst = 0;
+  timeAcc += 0.016 * (cfg.speed / 1000) * dtc;
 
   background(cfg.bg);
 
   const t = timeAcc;
   // RGB 通道偏移：带轻微抖动
   const jitter = (Math.sin(t * 7.3) * 0.5 + Math.sin(t * 13.1) * 0.5) * 0.4 + 1;
-  const burstMul = 1 + cfg.burst * 4;
-  const chrom = cfg.chromatic * jitter * burstMul;
-  const off1 = chrom;       // 左通道（c1）→ 右偏移，相对于中心
-  const off2 = chrom;       // 右通道（c2）→ 左偏移
+  const chrom = cfg.chromatic * jitter;
+  // 关键改动：左色向左上 45° 偏移（-x, -y），右色向右下 45° 偏移（+x, +y）
+  const dx1 = -chrom, dy1 = -chrom;  // 左上
+  const dx2 =  chrom, dy2 =  chrom;  // 右下
 
-  // 偶尔做"画面整体 y 轴抖动"模拟信号错位
-  const yJitter = cfg.burst > 0.3 ? (Math.random() - 0.5) * cfg.burst * 10 : 0;
-  const xJitter = cfg.burst > 0.5 ? (Math.random() < 0.4 ? (Math.random() - 0.5) * cfg.burst * 40 : 0) : 0;
+  // 使用预烤染色缓存（颜色变化时才重建，节省每帧开销）
+  const layer1 = getChannel(pg1Color, pg1, cfg.c1); pg1Color = cfg.c1;
+  const layer2 = getChannel(pg2Color, pg2, cfg.c2); pg2Color = cfg.c2;
 
-  push();
-  translate(xJitter, yJitter);
-
-  // 用 tint() 给同一张 pg 染色：左色偏移 +off1；右色偏移 -off2；中央白色
-  // 注意：tint 只影响 image()
-  if (off1 > 0.3) {
-    noTint();
-    tint(color(cfg.c1));
-    image(pg, off1, 0);
+  // 主绘制：只用 image() 三次（每次 GPU 合成整张带 alpha 的图）
+  if (chrom > 0.3) {
+    image(layer1, dx1, dy1);
+    image(layer2, dx2, dy2);
   }
-  if (off2 > 0.3) {
-    noTint();
-    tint(color(cfg.c2));
-    image(pg, -off2, 0);
-  }
-  noTint();
   image(pg, 0, 0);
 
   // 水平切片位移（核心故障效果）
-  if (cfg.sliceMag > 0 && (cfg.sliceDensity > 0 || cfg.burst > 0.2)) {
-    drawSlices();
+  if (cfg.sliceMag > 0 && cfg.sliceDensity > 0) {
+    drawSlices(chrom, dx1, dy1, dx2, dy2, layer1, layer2);
   }
-
-  pop();
-
-  // 噪点
-  if (cfg.noiseAmt > 0) drawNoise();
-
-  // 扫描线
-  if (cfg.scanAmt > 0) drawScanlines();
-
-  // HUD
-  if (cfg.showHUD) drawHUD();
-
-  frameIdx++;
 }
 
-// 切片：在 canvas 中随机取水平条，整体横向平移
-function drawSlices() {
-  const burst = cfg.burst;
-  const density = cfg.sliceDensity * (1 + burst * 2);
-  const mag = cfg.sliceMag * (1 + burst * 1.8);
-  const numSlices = Math.floor(density / 1.5) + (burst > 0.3 ? 8 : 0);
+// 切片：随机水平条，整体横向平移 + 偶发通道分离
+// 切片只在文字高度范围内生成（节省画空白区）
+// 每 8 帧才重新生成切片参数（避免跳动太快）
+let sliceUpdateCounter = 0;
+let cachedSliceParams = null;
+
+function drawSlices(chrom, dx1, dy1, dx2, dy2, layer1, layer2) {
+  const density = cfg.sliceDensity;
+  const mag = cfg.sliceMag;
+  const numSlices = Math.max(1, Math.min(6, Math.floor(density / 2)));
+
+  // 切片 y 范围：文字高度（如未计算则用全屏）
+  const yMin = textBBox ? Math.max(0, textBBox.top - 20) : 0;
+  const yMax = textBBox ? Math.min(height, textBBox.bottom + 20) : height;
+
+  // 切片更新间隔由动画速度滑块控制（speed 大→间隔小→跳动快）
+  const sliceInterval = Math.max(1, Math.round(200 / Math.max(1, cfg.speed)));
+  sliceUpdateCounter++;
+  if (sliceUpdateCounter >= sliceInterval || !cachedSliceParams || cachedSliceParams.length !== numSlices) {
+    sliceUpdateCounter = 0;
+    cachedSliceParams = [];
+    for (let i = 0; i < numSlices; i++) {
+      const sliceH = Math.random() < 0.25
+        ? Math.random() * 30 + 12   // 12-42px 大条
+        : Math.random() * 8 + 2;    // 2-10px 细条
+      const sy = yMin + Math.random() * Math.max(1, yMax - yMin - sliceH);
+      const shift = (Math.random() * 2 - 1) * mag;
+      const separate = Math.random() < 0.25;
+      const sepDist = separate ? cfg.chromatic : 0;
+      cachedSliceParams.push({ sliceH, sy, shift, sepDist });
+    }
+  }
 
   const ctx = drawingContext;
-
-  for (let i = 0; i < numSlices; i++) {
-    // 切片高度：偶尔做大条（醒目），多数做细条
-    const sliceH = Math.random() < 0.25
-      ? Math.random() * 30 + 12   // 12-42px 大条
-      : Math.random() * 8 + 2;    // 2-10px 细条
-    const sy = Math.random() * height;
-    if (sy + sliceH > height) continue;
-
-    // 切片内的随机偏移：偶发强偏移模拟信号断裂
-    const shift = (Math.random() * 2 - 1) * mag;
-    // 偶发：切片内做完整的通道分离（视觉冲击强）
-    const separate = Math.random() < (0.25 + burst * 0.6);
-    const sepDist = separate ? cfg.chromatic * (1 + burst * 3) : 0;
-
+  for (let i = 0; i < cachedSliceParams.length; i++) {
+    const p = cachedSliceParams[i];
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, sy, width, sliceH);
+    ctx.rect(0, p.sy, width, p.sliceH);
     ctx.clip();
 
-    // 三通道在切片内重新绘制
-    if (sepDist > 0.3) {
-      noTint(); tint(color(cfg.c1));
-      image(pg, sepDist + shift, 0);
-      noTint(); tint(color(cfg.c2));
-      image(pg, -sepDist + shift, 0);
+    if (p.sepDist > 0.3) {
+      image(layer1, dx1 + p.shift, dy1);
+      image(layer2, dx2 + p.shift, dy2);
     } else {
-      noTint(); tint(color(cfg.c1));
-      image(pg, shift * 0.5, 0);
+      image(layer1, dx1 + p.shift * 0.5, dy1);
     }
-    noTint();
-    image(pg, shift, 0);
+    image(pg, p.shift, 0);
 
     ctx.restore();
   }
-}
-
-// 噪点
-function drawNoise() {
-  const ratio = cfg.noiseAmt / 100;
-  // 随机散点（一次性扫描像素数组）
-  loadPixels();
-  const num = Math.floor(ratio * (width * height) * 0.005);
-  for (let i = 0; i < num; i++) {
-    const x = (Math.random() * width) | 0;
-    const y = (Math.random() * height) | 0;
-    const idx = (y * width + x) * 4;
-    const v = Math.random() < 0.5 ? 255 : 0;
-    if (Math.random() < 0.6) {
-      pixels[idx] = v; pixels[idx + 1] = v; pixels[idx + 2] = v;
-    } else {
-      // 偶尔偏色噪点
-      pixels[idx] = v;
-      pixels[idx + 1] = (Math.random() < 0.5) ? v : 0;
-      pixels[idx + 2] = (Math.random() < 0.5) ? v : 0;
-    }
-  }
-  updatePixels();
-}
-
-// 扫描线
-function drawScanlines() {
-  const a = cfg.scanAmt / 100 * 0.18;
-  noStroke();
-  fill(0, a);
-  for (let y = 0; y < height; y += 3) {
-    rect(0, y, width, 1);
-  }
-  // 偶尔闪亮行
-  if (Math.random() < 0.06) {
-    const ly = Math.random() * height;
-    fill(255, 0.18);
-    rect(0, ly, width, 1);
-  }
-}
-
-// HUD
-function drawHUD() {
-  const ctx = drawingContext;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 1;
-  const L = 28;
-  ctx.beginPath();
-  // TL
-  ctx.moveTo(20, 20 + L); ctx.lineTo(20, 20); ctx.lineTo(20 + L, 20);
-  // TR
-  ctx.moveTo(width - 20 - L, 20); ctx.lineTo(width - 20, 20); ctx.lineTo(width - 20, 20 + L);
-  // BL
-  ctx.moveTo(20, height - 20 - L); ctx.lineTo(20, height - 20); ctx.lineTo(20 + L, height - 20);
-  // BR
-  ctx.moveTo(width - 20 - L, height - 20); ctx.lineTo(width - 20, height - 20); ctx.lineTo(width - 20, height - 20 - L);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '10px "Cascadia Code", "Menlo", monospace';
-  const sp = Math.sin(timeAcc * 2) * 0.5 + 0.5;
-  ctx.fillText('SIGNAL  ' + (sp * 99).toFixed(1).padStart(5, '0'), 32, 18);
-  ctx.fillText('STATUS  ONLINE', width - 130, 18);
-  ctx.fillText('REC     ' + (Math.random() < 0.05 ? 'TRUE ' : 'FALSE'), 32, height - 10);
-  ctx.fillText('T+      ' + (frameCount % 9999).toString().padStart(4, '0'), width - 90, height - 10);
-
-  ctx.restore();
-}
-
-// ===== 触发故障 =====
-function triggerBurst() {
-  cfg.burst = 1;
 }
 
 // ===== UI 绑定 =====
@@ -591,37 +532,52 @@ function bindUI() {
     el.addEventListener('input', e => {
       cfg[key] = Number(e.target.value);
       v.textContent = fmt ? fmt(cfg[key]) : cfg[key];
-      if (['fontSize', 'tracking', 'fontName', 'text'].includes(key)) computeText();
+      if (['fontSize', 'tracking', 'lineHeight', 'fontName', 'text'].includes(key)) computeText();
     });
   };
-  const fmt1 = v => (v / 10).toFixed(1);
+  const fmtSpeed = v => (v / 1000).toFixed(3);
+  const fmtLineH = v => v.toFixed(1);
   bindSlider('fontSize', 'fontSize', 'vFontSize');
   bindSlider('tracking', 'tracking', 'vTracking');
+  bindSlider('lineHeight', 'lineHeight', 'vLineHeight', fmtLineH);
   bindSlider('chromatic', 'chromatic', 'vChromatic');
   bindSlider('sliceMag', 'sliceMag', 'vSliceMag');
   bindSlider('sliceDensity', 'sliceDensity', 'vSliceDensity');
-  bindSlider('noise', 'noiseAmt', 'vNoise');
-  bindSlider('scan', 'scanAmt', 'vScan');
-  bindSlider('speed', 'speed', 'vSpeed', fmt1);
+  bindSlider('speed', 'speed', 'vSpeed', fmtSpeed);
 
   $('textInput').value = cfg.text;
   $('textInput').addEventListener('input', e => { cfg.text = e.target.value; computeText(); });
 
-  $('triggerBtn').addEventListener('click', triggerBurst);
-  $('resetBtn').addEventListener('click', () => {
-    cfg.burst = 0;
-    cfg.chromatic = 14;
-    cfg.sliceMag = 38;
-    cfg.sliceDensity = 10;
-    cfg.noiseAmt = 35;
-    cfg.scanAmt = 30;
-    cfg.speed = 1.0;
-    $('chromatic').value = 14; $('vChromatic').textContent = '14';
-    $('sliceMag').value = 38; $('vSliceMag').textContent = '38';
-    $('sliceDensity').value = 10; $('vSliceDensity').textContent = '10';
-    $('noise').value = 35; $('vNoise').textContent = '35';
-    $('scan').value = 30; $('vScan').textContent = '30';
-    $('speed').value = 10; $('vSpeed').textContent = '1.0';
+  // 字体上传（参考粒子标题项目）
+  const fontBtn = $('fontBtn');
+  const fontClear = $('fontClear');
+  const fontFile = $('fontFile');
+  fontBtn.addEventListener('click', () => fontFile.click());
+  fontClear.addEventListener('click', () => {
+    cfg.fontName = null;
+    fontBtn.textContent = '📁 上传本地字体';
+    fontBtn.classList.remove('loaded');
+    computeText();
+  });
+  fontFile.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const family = 'userfont_' + Date.now();
+      const ff = new FontFace(family, `url(${reader.result})`);
+      ff.load().then(loaded => {
+        document.fonts.add(loaded);
+        cfg.fontName = family;
+        const shortName = file.name.length > 14 ? file.name.slice(0, 12) + '…' : file.name;
+        fontBtn.textContent = '✓ ' + shortName;
+        fontBtn.classList.add('loaded');
+        computeText();
+      }).catch(err => alert('字体加载失败：' + err.message));
+    };
+    reader.readAsDataURL(file);
+    // 重置 input value 让同一文件可重复选
+    e.target.value = '';
   });
 
   // 预设
@@ -645,29 +601,6 @@ function bindUI() {
   $('c1').addEventListener('input', e => cfg.c1 = e.target.value);
   $('c2').addEventListener('input', e => cfg.c2 = e.target.value);
   $('bg').addEventListener('input', e => cfg.bg = e.target.value);
-
-  // HUD 开关
-  $('hudSwitch').addEventListener('click', () => {
-    cfg.showHUD = !cfg.showHUD;
-    $('hudSwitch').classList.toggle('on', cfg.showHUD);
-  });
-
-  // 字体上传
-  $('fontFile').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const family = 'userfont_' + Date.now();
-      const ff = new FontFace(family, `url(${reader.result})`);
-      ff.load().then(loaded => {
-        document.fonts.add(loaded);
-        cfg.fontName = family;
-        computeText();
-      }).catch(err => alert('字体加载失败：' + err.message));
-    };
-    reader.readAsDataURL(file);
-  });
 
   // 导出
   $('saveBtn').addEventListener('click', () => saveCanvas('glitch-text-' + Date.now(), 'png'));
