@@ -313,6 +313,7 @@ let pg1Color = null, pg2Color = null;  // 缓存命中追踪
 let textBBox = null;  // 文字包围盒 { top, bottom, left, right }
 let timeAcc = 0;
 let lastFrameMs = 0;
+let shakeIntensity = 0;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -442,12 +443,22 @@ function draw() {
 
   timeAcc += 0.016 * (cfg.speed / 1000) * dtc;
 
+  // 抖动衰减与偏移计算
+  let shakeX = 0, shakeY = 0;
+  if (shakeIntensity > 0.01) {
+    shakeIntensity *= 0.88;
+    shakeX = (Math.random() - 0.5) * shakeIntensity * 40;
+    shakeY = (Math.random() - 0.5) * shakeIntensity * 20;
+  } else {
+    shakeIntensity = 0;
+  }
+
   background(cfg.bg);
 
   const t = timeAcc;
-  // RGB 通道偏移：带轻微抖动
+  // RGB 通道偏移：带轻微抖动，点击时大幅增强
   const jitter = (Math.sin(t * 7.3) * 0.5 + Math.sin(t * 13.1) * 0.5) * 0.4 + 1;
-  const chrom = cfg.chromatic * jitter;
+  const chrom = cfg.chromatic * jitter * (1 + shakeIntensity * 4);
   // 关键改动：左色向左上 45° 偏移（-x, -y），右色向右下 45° 偏移（+x, +y）
   const dx1 = -chrom, dy1 = -chrom;  // 左上
   const dx2 =  chrom, dy2 =  chrom;  // 右下
@@ -458,14 +469,15 @@ function draw() {
 
   // 主绘制：只用 image() 三次（每次 GPU 合成整张带 alpha 的图）
   if (chrom > 0.3) {
-    image(layer1, dx1, dy1);
-    image(layer2, dx2, dy2);
+    image(layer1, dx1 + shakeX, dy1 + shakeY);
+    image(layer2, dx2 + shakeX, dy2 + shakeY);
   }
-  image(pg, 0, 0);
+  image(pg, shakeX, shakeY);
 
   // 水平切片位移（核心故障效果）
   if (cfg.sliceMag > 0 && cfg.sliceDensity > 0) {
-    drawSlices(chrom, dx1, dy1, dx2, dy2, layer1, layer2);
+    if (shakeIntensity > 0.1) sliceUpdateCounter = 999; // 抖动时强制刷新切片
+    drawSlices(chrom, dx1 + shakeX, dy1 + shakeY, dx2 + shakeX, dy2 + shakeY, layer1, layer2);
   }
 }
 
@@ -477,7 +489,7 @@ let cachedSliceParams = null;
 
 function drawSlices(chrom, dx1, dy1, dx2, dy2, layer1, layer2) {
   const density = cfg.sliceDensity;
-  const mag = cfg.sliceMag;
+  const mag = cfg.sliceMag * (1 + shakeIntensity * 3);
   const numSlices = Math.max(1, Math.min(6, Math.floor(density / 2)));
 
   // 切片 y 范围：文字高度（如未计算则用全屏）
@@ -519,6 +531,33 @@ function drawSlices(chrom, dx1, dy1, dx2, dy2, layer1, layer2) {
     image(pg, p.shift, 0);
 
     ctx.restore();
+  }
+}
+
+// ===== 点击抖动 =====
+function mousePressed() {
+  // 排除控制面板区域
+  const panel = document.getElementById('panel');
+  if (panel && !panel.classList.contains('collapsed')) {
+    const rect = panel.getBoundingClientRect();
+    if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) return;
+  }
+  // 排除底部挂件区域
+  const bottomLinks = document.getElementById('bottomLinks');
+  if (bottomLinks && !bottomLinks.classList.contains('hidden')) {
+    const rect = bottomLinks.getBoundingClientRect();
+    if (mouseX >= rect.left - 10 && mouseX <= rect.right + 10 && mouseY >= rect.top - 10 && mouseY <= rect.bottom + 10) return;
+  }
+  // 点击文字区域触发抖动
+  if (textBBox) {
+    const padding = 50;
+    if (mouseY >= textBBox.top - padding && mouseY <= textBBox.bottom + padding) {
+      shakeIntensity = 1.0;
+    }
+  } else {
+    if (mouseY > height * 0.2 && mouseY < height * 0.8) {
+      shakeIntensity = 1.0;
+    }
   }
 }
 
