@@ -66,6 +66,13 @@
     font-size: 12px; font-weight: 600; cursor: pointer; transition: transform 0.15s;
   }
   .save-btn:active { transform: scale(0.97); }
+  .reset-btn {
+    flex: 0 0 72px; padding: 10px 0; border: 1px solid #3a3a4a; border-radius: 7px;
+    background: #1a1a24; color: #999; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: transform 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .reset-btn:hover { color: #ec4899; border-color: #ec4899; }
+  .reset-btn:active { transform: scale(0.97); }
   .text-input {
     width: 100%; padding: 8px 10px; background: #1a1a24; border: 1px solid #2a2a3a;
     border-radius: 5px; color: #e8ecff; font-size: 13px; outline: none;
@@ -252,6 +259,7 @@ DECODED</textarea>
 
   <div class="btn-row">
     <button class="save-btn" id="saveBtn">导出 PNG</button>
+    <button class="reset-btn" id="resetBtn" title="恢复全部默认参数">重置</button>
   </div>
 </div>
 
@@ -306,6 +314,134 @@ const cfg = {
   fontName: null,
 };
 
+/* ===== localStorage 持久化 ===== */
+const LS_PREFIX = 'glitch_';
+const DEFAULT_CFG = {
+  text: 'DIGITAL\nLAOHEI\nDECODED',
+  fontSize: 120,
+  tracking: 0,
+  lineHeight: 1.1,
+  chromatic: 3,
+  sliceMag: 15,
+  sliceDensity: 10,
+  speed: 50,
+  c1: '#00ffff',
+  c2: '#ff00ff',
+  bg: '#050008',
+  fontName: null,
+};
+
+function persistCfg(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, String(value)); } catch(e) {}
+}
+
+function persistFont(dataUrl, displayName) {
+  try {
+    localStorage.setItem(LS_PREFIX + 'fontData', dataUrl);
+    if (displayName) localStorage.setItem(LS_PREFIX + 'fontName', displayName);
+  } catch(e) {}
+}
+
+function clearFontStorage() {
+  try {
+    localStorage.removeItem(LS_PREFIX + 'fontData');
+    localStorage.removeItem(LS_PREFIX + 'fontName');
+  } catch(e) {}
+}
+
+function restoreFont() {
+  try {
+    const dataUrl = localStorage.getItem(LS_PREFIX + 'fontData');
+    if (!dataUrl) return;
+    const displayName = localStorage.getItem(LS_PREFIX + 'fontName') || '已保存字体';
+    const family = 'userfont_restored';
+    const ff = new FontFace(family, `url(${dataUrl})`);
+    ff.load().then(loaded => {
+      document.fonts.add(loaded);
+      cfg.fontName = family;
+      const fontBtn = document.getElementById('fontBtn');
+      if (fontBtn) {
+        const shortName = displayName.length > 14 ? displayName.slice(0, 12) + '\u2026' : displayName;
+        fontBtn.textContent = '\u2713 ' + shortName;
+        fontBtn.classList.add('loaded');
+      }
+      computeText();
+    }).catch(() => {});
+  } catch(e) {}
+}
+
+function restoreCfg() {
+  const keys = ['text','fontSize','tracking','lineHeight','chromatic','sliceMag','sliceDensity','speed','c1','c2','bg'];
+  for (const k of keys) {
+    const v = localStorage.getItem(LS_PREFIX + k);
+    if (v === null) continue;
+    if (typeof DEFAULT_CFG[k] === 'number') cfg[k] = parseFloat(v);
+    else cfg[k] = v;
+  }
+  syncUIFromCfg();
+  restoreFont();
+}
+
+function syncUIFromCfg() {
+  const $ = id => document.getElementById(id);
+  const fmtLineH = v => v.toFixed(1);
+  const fmtSpeed = v => (v / 1000).toFixed(3);
+  const sliderSpec = [
+    ['fontSize', 'vFontSize', null],
+    ['tracking', 'vTracking', null],
+    ['lineHeight', 'vLineHeight', fmtLineH],
+    ['chromatic', 'vChromatic', null],
+    ['sliceMag', 'vSliceMag', null],
+    ['sliceDensity', 'vSliceDensity', null],
+    ['speed', 'vSpeed', fmtSpeed],
+  ];
+  for (const [key, valId, fmt] of sliderSpec) {
+    const el = $(key), v = $(valId);
+    if (el) el.value = cfg[key];
+    if (v) v.textContent = fmt ? fmt(cfg[key]) : cfg[key];
+  }
+  const ti = $('textInput');
+  if (ti) ti.value = cfg.text;
+  if ($('c1')) $('c1').value = cfg.c1;
+  if ($('c2')) $('c2').value = cfg.c2;
+  if ($('bg')) $('bg').value = cfg.bg;
+  const fontBtn = $('fontBtn');
+  if (fontBtn && !cfg.fontName) {
+    fontBtn.textContent = '\u{1F4C1} 上传本地字体';
+    fontBtn.classList.remove('loaded');
+  }
+  const presetMap = {
+    cyber:   { c1: '#00ffff', c2: '#ff00ff', bg: '#050008' },
+    warning: { c1: '#ffff00', c2: '#ff0040', bg: '#1a0000' },
+    matrix:  { c1: '#00ff80', c2: '#00ff00', bg: '#001008' },
+  };
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  let matched = false;
+  for (const [name, p] of Object.entries(presetMap)) {
+    if (cfg.c1 === p.c1 && cfg.c2 === p.c2 && cfg.bg === p.bg) {
+      const btn = document.querySelector('.preset-btn[data-preset="' + name + '"]');
+      if (btn) { btn.classList.add('active'); matched = true; }
+      break;
+    }
+  }
+  if (!matched) {
+    const cyberBtn = document.querySelector('.preset-btn[data-preset="cyber"]');
+    if (cyberBtn) cyberBtn.classList.add('active');
+  }
+}
+
+function resetCfg() {
+  const keys = ['text','fontSize','tracking','lineHeight','chromatic','sliceMag','sliceDensity','speed','c1','c2','bg'];
+  for (const k of keys) {
+    cfg[k] = DEFAULT_CFG[k];
+    try { localStorage.removeItem(LS_PREFIX + k); } catch(e) {}
+  }
+  cfg.fontName = null;
+  clearFontStorage();
+  syncUIFromCfg();
+  computeText();
+}
+
 
 let pg;               
 let pg1, pg2;         
@@ -322,6 +458,7 @@ function setup() {
   pg = makeG();
   pg1 = makeG();
   pg2 = makeG();
+  restoreCfg();
   computeText();
 }
 
@@ -562,102 +699,7 @@ function mousePressed() {
 }
 
 
-
-// ============ 数据持久化 ============
-var LS_PREFIX = 'glitch_';
-var LS_IMAGE_MAX = 4 * 1024 * 1024;
-
-function persistCfg(key, value) {
-  try { localStorage.setItem(LS_PREFIX + key, String(value)); }
-  catch (e) { console.warn('[persist] localStorage 写入失败（' + key + '）:', e.message); }
-}
-
-function persistFont(dataUrl, fontName) {
-  if (!dataUrl) return;
-  if (dataUrl.length > LS_IMAGE_MAX) {
-    console.warn('[persist] 字体过大，未存 localStorage');
-    return;
-  }
-  try {
-    localStorage.setItem(LS_PREFIX + 'font', dataUrl);
-    localStorage.setItem(LS_PREFIX + 'fontName', fontName);
-  } catch (e) { console.warn('[persist] 字体存 localStorage 失败:', e.message); }
-}
-function clearPersistedFont() {
-  localStorage.removeItem(LS_PREFIX + 'font');
-  localStorage.removeItem(LS_PREFIX + 'fontName');
-}
-
-function restoreCfg() {
-  var keys = ['text', 'fontSize', 'tracking', 'lineHeight', 'chromatic', 'sliceMag', 'sliceDensity', 'speed', 'c1', 'c2', 'bg', 'fontName'];
-  var count = 0;
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    var v = localStorage.getItem(LS_PREFIX + k);
-    if (v === null) continue;
-    if (typeof cfg[k] === 'boolean') cfg[k] = (v === 'true');
-    else if (typeof cfg[k] === 'number') cfg[k] = parseFloat(v);
-    else if (typeof cfg[k] === 'string') cfg[k] = v;
-    count++;
-  }
-  if (count === 0) return false;
-  syncUIFromCfg();
-  console.log('[persist] 还原', count, '个参数');
-  return true;
-}
-
-function syncUIFromCfg() {
-  var $ = function(id) { return document.getElementById(id); };
-  // Sync all range inputs that match cfg keys
-  for (var k in cfg) {
-    var el = $(k);
-    if (el && el.type === 'range') {
-      el.value = cfg[k];
-      // trigger label update
-      if (el.oninput) el.oninput({target: el});
-      else el.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync color inputs
-  for (var k2 in cfg) {
-    var el2 = $(k2);
-    if (el2 && el2.type === 'color') {
-      el2.value = cfg[k2];
-      el2.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync text inputs
-  var ti = $('textInput');
-  if (ti && cfg.text !== undefined) { ti.value = cfg.text; ti.dispatchEvent(new Event('input', {bubbles: true})); }
-  var fn = $('fontName') || $('fontInput');
-  if (fn && cfg.fontName !== undefined) { 
-    if (fn.tagName === 'INPUT') { fn.value = cfg.fontName; }
-  }
-
-}
-
-function restoreFont() {
-  var src = localStorage.getItem(LS_PREFIX + 'font');
-  if (!src) return false;
-  var fname = localStorage.getItem(LS_PREFIX + 'fontName') || 'custom';
-  var face = new FontFace(fname, 'url(' + src + ')');
-  face.load().then(function(f) {
-    document.fonts.add(f);
-    if (typeof cfg !== 'undefined' && cfg.fontName !== undefined) cfg.fontName = fname;
-    var fn = document.getElementById('fontName') || document.getElementById('fontFileName');
-    if (fn) { if (fn.tagName === 'INPUT') fn.value = fname; }
-    console.log('[persist] 还原字体:', fname);
-  }).catch(function(e) {
-    console.warn('[persist] 还原字体失败:', e.message);
-  });
-  return true;
-}
-
 function bindUI() {
-  // 恢复持久化设置
-  try { restoreCfg(); } catch(e) { console.warn('restoreCfg err:', e.message); }
-  try { restoreFont(); } catch(e) {}
-
   const $ = id => document.getElementById(id);
   const bindSlider = (id, key, valId, fmt) => {
     const el = $(id), v = $(valId);
@@ -667,6 +709,7 @@ function bindUI() {
       cfg[key] = Number(e.target.value);
       v.textContent = fmt ? fmt(cfg[key]) : cfg[key];
       if (['fontSize', 'tracking', 'lineHeight', 'fontName', 'text'].includes(key)) computeText();
+      persistCfg(key, cfg[key]);
     });
   };
   const fmtSpeed = v => (v / 1000).toFixed(3);
@@ -680,7 +723,7 @@ function bindUI() {
   bindSlider('speed', 'speed', 'vSpeed', fmtSpeed);
 
   $('textInput').value = cfg.text;
-  $('textInput').addEventListener('input', e => { try { persistCfg('text', cfg.text); } catch(e) {} cfg.text = e.target.value; computeText(); });
+  $('textInput').addEventListener('input', e => { cfg.text = e.target.value; computeText(); persistCfg('text', cfg.text); });
 
   
   const fontBtn = $('fontBtn');
@@ -691,6 +734,7 @@ function bindUI() {
     cfg.fontName = null;
     fontBtn.textContent = '📁 上传本地字体';
     fontBtn.classList.remove('loaded');
+    clearFontStorage();
     computeText();
   });
   fontFile.addEventListener('change', e => {
@@ -706,6 +750,7 @@ function bindUI() {
         const shortName = file.name.length > 14 ? file.name.slice(0, 12) + '…' : file.name;
         fontBtn.textContent = '✓ ' + shortName;
         fontBtn.classList.add('loaded');
+        persistFont(reader.result, shortName);
         computeText();
       }).catch(err => alert('字体加载失败：' + err.message));
     };
@@ -728,22 +773,25 @@ function bindUI() {
       if (!p) return;
       cfg.c1 = p.c1; cfg.c2 = p.c2; cfg.bg = p.bg;
       $('c1').value = p.c1; $('c2').value = p.c2; $('bg').value = p.bg;
+      persistCfg('c1', cfg.c1); persistCfg('c2', cfg.c2); persistCfg('bg', cfg.bg);
     });
   });
 
   
-  $('c1').addEventListener('input', e => cfg.c1 = e.target.value);
-  $('c2').addEventListener('input', e => cfg.c2 = e.target.value);
-  $('bg').addEventListener('input', e => cfg.bg = e.target.value);
+  $('c1').addEventListener('input', e => { cfg.c1 = e.target.value; persistCfg('c1', cfg.c1); });
+  $('c2').addEventListener('input', e => { cfg.c2 = e.target.value; persistCfg('c2', cfg.c2); });
+  $('bg').addEventListener('input', e => { cfg.bg = e.target.value; persistCfg('bg', cfg.bg); });
 
   
   $('saveBtn').addEventListener('click', () => saveCanvas('glitch-text-' + Date.now(), 'png'));
+
+  $('resetBtn').addEventListener('click', resetCfg);
 
   
   $('togglePanel').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
 
   
-  $('hideLinksBtn').addEventListener('click', () => { try { persistCfg('bg', cfg.bg); } catch(e) {} try { persistCfg('c2', cfg.c2); } catch(e) {} try { persistCfg('c1', cfg.c1); } catch(e) {}
+  $('hideLinksBtn').addEventListener('click', () => {
     $('bottomLinks').classList.add('hidden');
     $('showLinksBtn').classList.add('visible');
   });
@@ -769,6 +817,8 @@ function bindUI() {
   $('panel').addEventListener('pointerleave', uiShow);
   $('bottomLinks').addEventListener('pointerenter', uiHide);
   $('bottomLinks').addEventListener('pointerleave', uiShow);
+
+  syncUIFromCfg();
 }
 
 window.addEventListener('load', bindUI);
